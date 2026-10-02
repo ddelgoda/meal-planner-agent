@@ -1,0 +1,9 @@
+Food group,Target,Target min,Target max,Unit,Period,Serving size definition,Source,Source version
+Protein,70 to 80 g per day,70,80,g protein,day,"Each of these gives roughly 20 to 25 g protein: 3 whole eggs; 100 to 120 g cooked fish; 200 g Greek or dairy yoghurt; 1 scoop protein powder; 100 to 120 g cooked chicken; 1.5 cups cooked lentils or legumes; 60 g nuts (top-up only, not a primary source)",Weekly Food Formula (dietitian guidance; de-identified),v1
+Protein distribution,One protein source at breakfast and one at lunch plus usual dinner portion,3,,protein sources,day,One protein source = one portion from the protein list above,Weekly Food Formula (dietitian guidance; de-identified),v1
+Vegetables,3 to 4 cups per day,3,4,cups,day,1 cup of vegetables (source does not specify raw or cooked),Weekly Food Formula (dietitian guidance; de-identified),v1
+Leafy greens,"2 large bags per week, plus a mix of other vegetables",2,2,large bags,week,"Leafy greens (spinach, kale, rocket); 1 bag = Coles large bag (400 g)",Weekly Food Formula (dietitian guidance; de-identified),v1
+Bitter greens,A few times a week,,,times,week,"Rocket, radicchio or endive included in a meal",Weekly Food Formula (dietitian guidance; de-identified),v1
+Complex carbohydrates,1.5 to 2 cups cooked per day,1.5,2,cups cooked,day,"1 cup cooked (e.g. sweet potato, pumpkin, oats)",Weekly Food Formula (dietitian guidance; de-identified),v1
+Healthy fats,2 to 3 servings per day,2,3,servings,day,1 serving = 1 tbsp olive oil; or 1/4 avocado; or 20 g nuts or seeds; or fish oil capsules,Weekly Food Formula (dietitian guidance; de-identified),v1
+Fruit,2 serves per day,2,2,serves,day,1 serve = 1 piece of fruit or 1 cup berries,Weekly Food Formula (dietitian guidance; de-identified),v1
