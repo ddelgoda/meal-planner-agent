@@ -104,7 +104,7 @@ Screenshots of the agent in action: [docs/agent-behavior.md](docs/agent-behavior
 5. **The same input can produce different behaviour.** One injection test was refused in one run and followed in another, a strong argument for enforcing critical rules in code.
 6. **Development has a running cost.** Copilot Studio consumes credits for building and testing in developer environments, so capacity has to be allocated and monitored per environment.
 
-## What's next
+## What's next [docs/roadmap.md](docs/roadmap.md).
 
 **Power Platform (October 2026)**
 
