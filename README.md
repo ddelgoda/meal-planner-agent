@@ -149,4 +149,5 @@ The dietitian's guidance document is personal health information and is not publ
 Microsoft Copilot Studio, Copilot Studio agent workflows (SharePoint connector, Select, Respond to the agent), SharePoint Online, GPT-5 Chat.
 
 ## AI assistance
-I used Claude (Anthropic) to help plan the project and to draft and structure the documentation, including the evaluation framework and benchmark tests. All agent tests were run by me in Copilot Studio, and the results reflect what I observed. I reviewed and edited all AI-assisted content.
+
+I used Claude (Anthropic) to help plan the project and to draft and structure the documentation, including the evaluation framework and presentation of benchmark tests. All agent tests were run by me in Copilot Studio, and the results reflect what I observed. I reviewed and edited all AI-assisted content.
