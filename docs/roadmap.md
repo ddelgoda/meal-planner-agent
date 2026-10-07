@@ -8,7 +8,7 @@ The prototype is built and tested (see [test-results.md](test-results.md)). The 
 |---|---|---|
 | Wed 7 Oct | Agent returns the plan as JSON (day, meal, ingredient, grams, food group) | Valid JSON on 3 runs in a row |
 | Thu 8 Oct | Validation flow sums grams by food group per day | Totals calculated in the flow |
-| Sat 10 Oct | Compare totals to targets; pass/fail shown in the reply | "Not yet validated" replaced |
+| Sat 10 Oct | Compare totals to targets; pass/fail shown in the replyCompare totals to targets; on a fail, regenerate once with the shortfalls, then warn the user if it still fails | "Not yet validated" replaced; a failing plan is never shown as compliant |
 | Mon 12 Oct | Food lookup of about 10 foods (from the v4 errors) as a Dataverse table | Table populated |
 | Tue 13 Oct | Validation uses the lookup instead of the agent's labels | Spinach error caught[^spinach] |
 | Wed 14 Oct | Golden set: 6 scenarios with expected outcomes | Set written |
