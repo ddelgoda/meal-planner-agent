@@ -4,13 +4,14 @@ A Microsoft Copilot Studio agent that builds a personal 3-day meal plan from **a
 
 Meal planning is the test case. The real subject is a pattern that matters in any regulated setting: an AI agent that must combine sources of different authority, resolve conflicts between them openly, and never take instructions from the data it reads.
 
-> **Status:** working prototype built in a personal Microsoft 365 trial tenant (September to October 2026). Built and tested, not published.
+> **Status:** working prototype built in a personal Microsoft 365 trial tenant (September to October 2026), with a deterministic validation flow and a golden test set. Built and tested, not published. Next phases: Power Platform ALM and governance, then Azure (see [roadmap](docs/roadmap.md)).
 
 ## What it does
 
 - Fetches dietary targets, interpretation rules, food-combining rules and the current pantry from SharePoint before every plan
 - Plans 3 days of meals around what is already in the pantry
-- Checks the plan against each target and reports shortfalls with numbers
+- Sends the plan as JSON to a validation flow, which recalculates the totals from a Dataverse food lookup and returns PASS or FAIL with each shortfall in numbers
+- Retries once after a FAIL, then reports the flow's result as returned, never its own judgement
 - Lists only missing items on the shopping list
 - Follows the user's requests even when they conflict with the guidance, but discloses the trade-off
 - Ignores instructions hidden in its data (tested with an injected pantry item)
@@ -38,11 +39,17 @@ flowchart LR
 
     KS{{"Knowledge search"}}
 
-    subgraph CS["Copilot Studio"]
-        A["Meal Planner agent<br/>GPT-5 Chat, prompt v4<br/>authority hierarchy, conflict rules, data safety"]
+    subgraph DV["Dataverse"]
+        FL[("Food Item lookup<br/>23 foods: group, protein per 100 g")]
     end
 
-    O["Output<br/>pantry found, daily plan, self-check,<br/>changes and conflicts, shopping list"]
+    V["Validate plan totals<br/>agent workflow (tool)<br/>sums by day and food group, protein, bitter greens"]
+
+    subgraph CS["Copilot Studio"]
+        A["Meal Planner agent<br/>GPT-5 Chat, prompt v9<br/>authority hierarchy, conflict rules, data safety"]
+    end
+
+    O["Output<br/>pantry found, daily plan, validation result,<br/>changes and conflicts, shopping list, plan JSON"]
 
     PDF --> KS --> A
     T --> W1 --> A
@@ -50,6 +57,9 @@ flowchart LR
     N --> W3 --> A
     P --> W4 --> A
     U --> A
+    A -- "plan JSON" --> V
+    FL --> V
+    V -- "PASS / FAIL, issues, notes" --> A
     A --> O
 
     classDef authoritative fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
@@ -59,6 +69,7 @@ flowchart LR
     class PDF,T authoritative
     class I,N userrule
     class P state
+    class FL authoritative
 ```
 
 **Legend:** blue = authoritative (dietitian guidance), amber = user decisions, green = current state. More detail in [docs/architecture.md](docs/architecture.md).
@@ -72,8 +83,10 @@ flowchart LR
 | **Workflows, not knowledge search, for structured data** | Knowledge search returns snippets, so rows went missing; workflows return every row exactly |
 | **Filtering at the source** | Only active rules reach the agent, with only the columns it needs |
 | **All retrieved content treated as data** | Defends against prompt injection through documents or lists |
+| **Validation in a flow, not by the model** | The agent cannot do reliable arithmetic across about 40 ingredients; the flow recalculates every total the same way each time |
+| **Food groups from a lookup table, not the agent's labels** | The agent mislabelled foods (spinach as a bitter green, pumpkin as a vegetable); one fixed group per food makes the check independent of the agent |
 
-The full reasoning is in the [decision log](docs/decision-log.md) (38 decisions, 12 interpretation rules, build log and test results).
+The full reasoning is in the [decision log](docs/decision-log.md) (45 decisions, interpretation rules, build log and prompt versions).
 
 ## Results
 
@@ -91,7 +104,18 @@ Same request ("Plan 3 days of meals for me") across prompt versions, model GPT-5
 
 v1 produced no plan to compare: SharePoint knowledge search failed, and the agent declined to guess the targets or pantry, explaining why (an honesty pass). v5, a leaner experiment, is covered under [What I learned](#what-i-learned).
 
-v4 fixed every **data** problem. What remains is **arithmetic** (teaspoons vs tablespoons, greens vs vegetables, grams per meal), which is why the next step is a validation workflow in code. Full results: [docs/test-results.md](docs/test-results.md).
+v4 fixed every **data** problem. What remained was **arithmetic** (teaspoons vs tablespoons, greens vs vegetables, grams per meal), so v6 to v9 moved the checking out of the model.
+
+**Validation flow (v6 to v9).** The agent returns its plan as JSON, and a flow recalculates the totals using a Dataverse food lookup, then returns PASS or FAIL with every issue.
+
+| Test | Result |
+|---|---|
+| Golden set: 6 fixed plans run through the flow, each with an expected result worked out independently | 6 of 6 as expected, including the old spinach error caught and a compliant plan passing |
+| Agent runs (prompt v9): does the agent call the flow, retry after FAIL and report honestly? | 4 of 6 good; 1 skipped the retry; 1 called the flow once, got FAIL and reported two calls and a PASS |
+
+![Validation flow](images/11-validation-flow.png)
+
+Full results: [docs/test-results.md](docs/test-results.md). Golden set inputs and expected results: [golden/golden-set-v1.md](golden/golden-set-v1.md).
 
 Screenshots of the agent in action: [docs/agent-behavior.md](docs/agent-behavior.md).
 
@@ -102,28 +126,27 @@ Screenshots of the agent in action: [docs/agent-behavior.md](docs/agent-behavior
 3. **Error messages can mislead.** A SharePoint search backend error turned out to be caused by a knowledge source pointing at a page address instead of the site.
 4. **Removing "duplicate" prompt rules made results worse.** A leaner prompt that relied only on rules held in the data (v5) performed worse than v4. The explicit lines were doing real work.
 5. **The same input can produce different behaviour.** One injection test was refused in one run and followed in another, a strong argument for enforcing critical rules in code.
-6. **Development has a running cost.** Copilot Studio consumes credits for building and testing in developer environments, so capacity has to be allocated and monitored per environment.
+6. **A validation tool does not make an agent honest.** Even with explicit rules (call the tool, retry on FAIL, copy the result exactly), the agent once called the flow, received FAIL, and reported a PASS from two calls. The flow caught the problem; the prompt could not prevent it. Critical checks need to be enforced by orchestration, not requested in the prompt.
+7. **Deterministic checks need their own tests.** The golden set caught a matching bug ("eggplant" counted as eggs) that ordinary runs would have hidden.
+8. **Development has a running cost.** Copilot Studio consumes credits for building and testing in developer environments, so capacity has to be allocated and monitored per environment.
 
-## What's next 
+## What's next
 
-See details in [docs/roadmap.md](docs/roadmap.md).
+Full plan with dates and "done when" for each step: [docs/roadmap.md](docs/roadmap.md).
 
-**Power Platform (October 2026)**
+**Power Platform (November 2026)**
 
-- Structured plan output and a validation workflow that recalculates totals in code and reports pass or fail per target
-- A small food lookup table in Dataverse, so validation does not rely on the agent's labels
-- A golden set of 6 scenarios, run as a baseline and after each change
-- ALM: custom solution, environment variables, managed import into a test environment, deployment pipeline
-- Governance and monitoring: DLP policy, Purview audit and sensitivity labels, conversation analytics
-- Publish to Teams with Entra ID sign-in, and email the validated plan through Outlook
+- ALM: custom solution, environment variables, managed import into a test environment, and a deployment pipeline if time allows
+- Publish to Teams with Entra ID sign-in
+- Governance and monitoring: DLP policy, conversation analytics, Purview audit and sensitivity labels
+- Golden set rerun after each change
 
-**Azure (November 2026)**
+**Azure (November to December 2026)**
 
-- Azure AI Foundry: compare an LLM and an SLM; automated evaluation (groundedness, relevance) against manual scores
-- Azure AI Search over the dietitian guidance as a knowledge source
-- Azure AI Content Safety Prompt Shields on the injection tests
-- Validation as a Python Azure Function, with Application Insights and Key Vault
-- Infrastructure as code (Bicep) and a GitHub Actions workflow
+- Azure AI Search over the dietitian guidance as a knowledge source, and Content Safety Prompt Shields on the injection tests
+- Validation as a Python Azure Function with Application Insights, called by a small pro-code agent (Foundry Agents SDK)
+- Foundry evaluation on the golden set; an LLM and an SLM compared
+- Key Vault or managed identity, Bicep, and a GitHub Actions workflow
 
 ## Repository structure
 
@@ -134,9 +157,11 @@ meal-planner-agent/
 │   ├── agent-behavior.md
 │   ├── architecture.md
 │   ├── decision-log.md
+│   ├── roadmap.md
 │   └── test-results.md
-├── prompts/        prompt versions v1 to v5
-├── data/           the SharePoint lists (personal details redacted)
+├── prompts/        prompt versions v1 to v9
+├── data/           the SharePoint lists (personal details redacted) and the food lookup
+├── golden/         golden set: test plans and expected results
 └── images/         screenshots
 ```
 
@@ -146,8 +171,8 @@ The dietitian's guidance document is personal health information and is not publ
 
 ## Built with
 
-Microsoft Copilot Studio, Copilot Studio agent workflows (SharePoint connector, Select, Respond to the agent), SharePoint Online, GPT-5 Chat.
+Microsoft Copilot Studio, Copilot Studio agent workflows (SharePoint and Dataverse connectors, Parse JSON, Filter array, Respond to the agent), SharePoint Online, Microsoft Dataverse, GPT-5 Chat.
 
 ## AI assistance
 
-I used Claude (Anthropic) to help plan the project and to draft and structure the documentation, including the evaluation framework and presentation of benchmark tests. All agent tests were run by me in Copilot Studio, and the results reflect what I observed. I reviewed and edited all AI-assisted content.
+I used Claude (Anthropic) to help plan the project and to draft and structure the documentation, including the evaluation framework, the validation flow design, the golden set and the presentation of test results. All agent tests were run by me in Copilot Studio, and the results reflect what I observed. I reviewed and edited all AI-assisted content.
