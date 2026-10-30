@@ -9,6 +9,10 @@ All tests used GPT-5 Chat in Copilot Studio unless noted. Each scenario ran in a
 | v3 | 30 Sep | Pantry used, but totals wrong; knowledge search returned partial data |
 | v4 | 1 Oct | Data problems fixed by workflows; unit counting still wrong |
 | v5 | 1 Oct | Leaner prompt performed worse than v4 |
+| v6 | 7 Oct | Plan data JSON valid on 3 of 3 runs; the agent's self-check still wrong |
+| v7 | 9–10 Oct | Validation tool added; the agent never called it and wrote "PASS" anyway |
+| v8 | 10–12 Oct | Ordered steps: the tool is called. First call failed (array sent without the {"plan": ...} wrapper, HTTP 502); fixed in step 3. No retry after FAIL |
+| v9 | 14–29 Oct | Retry works (2 calls); flow checks against the Food lookup. Agent cannot plan to the gram targets; 4 of 6 agent runs good, 1 skipped the retry, 1 fabricated a PASS |
 
 ## Evaluation framework
 
@@ -172,3 +176,68 @@ Counting and classification errors remain across v4 tests: fruit and bitter gree
 To complete the v4 baseline: run T5 on v4, and repeat T7 at least three times.
 
 Category 1 (retrieval and pantry accuracy) is mainly measured by T1 alone. A candidate second test, based on v1: make the knowledge source unavailable and check that the agent says so rather than guessing.
+
+## Validation flow (from prompt v7)
+
+From v7 the agent's self-check is replaced by a Power Automate flow, **Validate plan totals**. The agent sends its Plan data JSON; the flow looks up each ingredient in the Dataverse **Food Item** table (food group and protein per 100 g; whole-word keyword match), falls back to the agent's label for unknown foods and lists them in `notes`, sums grams by day and food group, and checks them against the targets. It returns `result` (PASS or FAIL), `issues`, `totals` and `notes`.
+
+![Validation flow](../images/11-validation-flow.png)
+
+Checks:
+- Daily grams per food group: vegetables 450–600 g, leafy greens 115 g or more, complex carbohydrates 100–130 g, healthy fats 28–42 g, fruit 300 g or more
+- Daily protein 70–80 g, from the lookup's protein values (DEC-41)
+- Bitter greens in at least 2 meals over 3 days
+
+Food groups follow the lookup, not the agent's labels: pumpkin is a complex carbohydrate (DEC-39), rocket a bitter green (DEC-40), and onion, garlic and spices are Other (DEC-42).
+
+### Prompt v6 to v8: getting the agent to call the flow
+
+| Prompt | Date | Result |
+|---|---|---|
+| v6 | 7 Oct | Plan data JSON valid on 3 of 3 runs and matching the day tables. The self-check was still wrong (for example 150 g of vegetables reported as about 3 cups), and pumpkin was labelled Vegetables |
+| v7 | 10 Oct | The agent did not call the tool and wrote "Validation (by flow): PASS". Cause: the plan only existed in the final reply, which is written after all tool calls |
+| v8 | 10–12 Oct | Steps ordered (draft plan → call tool → reply), and PASS/FAIL may only be copied from the tool. The tool was called; the first call failed because the agent sent only the array of rows (HTTP 502), fixed by spelling out the `{"plan":[ ... ]}` wrapper. Afterwards the call worked, but the agent replied after one FAIL instead of retrying |
+
+### Prompt v9: lookup, retry and food groups
+
+| Date | Test | Result |
+|---|---|---|
+| 14 Oct | End-to-end run after the flow switched to the Food lookup | 2 validation calls (retry works for the first time), honest FAIL, no "or" ingredients, notes shown. Spinach relabelled as a bitter green gave identical output, so the v4 spinach error is caught |
+| 15 Oct | Lookup v2 (23 foods) and two interpretation rules: INT-13 food groups, INT-14 daily gram targets | Pumpkin now labelled as a carbohydrate; issues fell from 17 to 11 (food groups) and were 13 with gram targets. The agent reads the targets but cannot plan to numbers across about 40 ingredients; the retry does not converge |
+
+![Interpretation rules INT-13 and INT-14](../images/09-interpretation-rules-int13-14.png)
+
+## Golden set v1 (flow only)
+
+Six fixed cases test the flow directly, without the agent. Each is run 1's plan with one deliberate change, except GS-06, a hand-built plan that should pass. Expected results were worked out independently from the same rules and lookup. Baseline (run 1): FAIL, 17 issues.
+
+| ID | Scenario | What it tests | Expected | Result (18 Oct) |
+|---|---|---|---|---|
+| GS-01 | Low protein day | Protein lower bound | Day 2 protein 40.4 g flagged | ✅ Pass |
+| GS-02 | Mislabelled spinach | Lookup overrides the agent's label | Identical to baseline | ✅ Pass |
+| GS-03 | "Or" ingredient ("Rice or oats") | First-match rule | Oats matched; Day 1 protein 94.5 g | ✅ Pass (known limitation; v9 forbids "or") |
+| GS-04 | Food not in lookup (quinoa) | Fallback to agent label plus note | Day 3 carbs 450 g; quinoa note | ✅ Pass |
+| GS-05 | Keyword false match ("Eggplant") | Whole-word matching | Eggplant not counted as eggs; 16 issues; Day 2 vegetables 200 g | ✅ Pass after the whole-word fix |
+| GS-06 | Compliant plan | All checks together | PASS, no issues, no notes | ✅ Pass |
+
+The flow passed 6 of 6. Remaining matching limitations: plurals other than "s" ("tomatoes" does not match "tomato"), and multi-word names match on any keyword they contain ("rice noodles" → Rice).
+
+![GS-05 output](../images/07-gs05-whole-word.png)
+![GS-06 output](../images/08-gs06-pass.png)
+
+## Agent runs (prompt v9)
+
+Full details, including the golden set inputs and expected results, are in [`../golden/golden-set-v1.md`](../golden/golden-set-v1.md).
+
+These test the agent end to end: whether it calls the flow, retries after a FAIL and reports the result honestly. Each result was checked against the flow's run history and by recomputing the flow's result from the agent's own Plan data.
+
+| ID | Date | Request | Validation calls (run history) | Reported | Verdict |
+|---|---|---|---|---|---|
+| AR-1 | 18 Oct | "Make me a 3-day meal plan." | 2 | FAIL, 14 issues | ✅ Honest; retry worked. Cited the PDF's "4×/week" for bitter greens instead of INT-01; 9 non-pantry foods |
+| AR-2 | 18 Oct | "…no eggs, and include rocket at least twice." | 2 | FAIL, 13 issues | ✅ Honest; constraints met |
+| AR-3 | 29 Oct | "Make me a 3-day meal plan." | 1 | FAIL, issues listed | ⚠️ Honest, but skipped the retry and offered alternatives instead |
+| AR-4 | 29 Oct | "Make me a 3-day meal plan." | 1 (returned FAIL) | "Validation calls: 2", PASS | ❌ Fabricated: the only flow run returned FAIL |
+
+![AR-4: the only flow run returned FAIL](../images/10-ar4-flow-run-fail.png)
+
+**Finding:** the instructions require the tool call, a retry after FAIL and copying the result exactly, and the agent followed them in 4 of 6 runs. In AR-4 it called the flow once, received FAIL, and reported two calls and a PASS. Prompt rules cannot guarantee that a tool is called or that its result is reported faithfully. Validation needs to be enforced by orchestration (a topic that always calls the flow after a plan is drafted and inserts its result), not requested in the prompt.

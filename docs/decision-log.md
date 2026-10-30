@@ -59,6 +59,13 @@ Each source keeps its own authority and provenance, and derived rules link back 
 | DEC-36 | A "Get dietary targets" workflow returns the targets list with seven columns via a Select step; the targets list is edited in place (empty row removed, leafy greens row updated, blank numbers cleared rather than shown as 0) | The agent had been inventing its own targets; the list is connected to a flow, so it is edited rather than re-imported (DEC-21) |
 | DEC-37 | A "Get interpretation rules" workflow returns all twelve rules with four columns (Rule, Applies to, Source, Interpretation); value min and max are left out | Blank numbers imported as 0 could be misread; the numbers are already in the interpretation text. With this, all four lists are read through flows and the CSV copies (DEC-33) can be removed |
 | DEC-38 | The solution (agent and four workflows, CDS Default Publisher) is exported as a private backup only and not published; the public repository uses documentation and redacted screenshots instead | The export contains the tenant name, SharePoint site address and personal details hard-coded in the workflows; publishing it safely needs environment variables |
+| DEC-39 | In the Food lookup, pumpkin is grouped as Complex carbohydrates, not Vegetables | The dietitian's targets list pumpkin as an example carbohydrate ("sweet potato, pumpkin, oats"); the agent had labelled it a vegetable in every v6 run |
+| DEC-40 | In the Food lookup, rocket is grouped as Bitter greens | The guidance lists rocket under both leafy greens and bitter greens; each food can have only one group, and bitter greens is the target plans kept missing and the one the check is about |
+| DEC-41 | The flow checks daily protein against the 70–80 g range from the Dietary targets list; 20–25 g per meal is guidance for the agent only | The daily range is the authoritative target; a per-meal check would fail plans that meet the daily total |
+| DEC-42 | Onion, garlic and spices are grouped as Other and do not count towards Vegetables | They are used in small amounts for flavour; counting them would let plans reach the vegetable target without real vegetables |
+| DEC-43 | Frequently edited settings (targets, interpretation rules, no-mix rules, pantry) stay in SharePoint lists; typed reference data (the Food lookup) lives in Dataverse | SharePoint lists are easy to edit day to day; Dataverse gives typed columns and moves with the solution |
+| DEC-44 | Open: how pumpkin counts against the complex carbohydrate target | The 100–130 g range was converted from raw rice, so counting pumpkin gram for gram makes the target almost impossible to meet. Options: a separate pumpkin allowance, counting in servings, or keeping it strict and documenting the limitation |
+| DEC-45 | The dev → test pipeline is built only if the test environment and managed import session goes well; otherwise the manual managed import is the hands-on evidence and the pipeline is written up as a design | Most of the dev → test learning comes from the test environment and managed import; a pipeline automates those same steps |
 
 ## Workflow reference
 
@@ -144,6 +151,10 @@ Each version of the agent instructions and what changed.
 | v3 | 30 Sep | Pantry-first planning: build meals around pantry ingredients, use each pantry protein at least once, minimal non-pantry additions, pantry items only on the shopping list for extra quantity; new output step 0 "Pantry found" |
 | v4 | 1 Oct | Sources now come from tools: dietary targets, interpretation rules, no-mix rules and pantry are each fetched by a workflow before every plan (DEC-34 to DEC-37); the PDF is kept to explain choices; CSV copies removed from knowledge |
 | v5 | 1 Oct | Experiment: removed rules already held in the data (active-only filter, same-meal scope, protein per meal, leafy greens in addition, dairy milk exclusion) so the prompt covers behaviour only; behaviour lines moved from SOURCES to PLANNING RULES; added "name the tool" to OUTPUT |
+| v6 | 2 Oct | Plan data JSON block at the end of every plan (day, meal, ingredient, grams, food group) for the validation flow |
+| v7 | 9 Oct | Self-check replaced by the "Validate plan totals" tool, with one retry on FAIL; no PASS/FAIL without a tool result |
+| v8 | 10 Oct | Validation steps ordered (draft plan → call tool → reply); input must be the full {"plan":[...]} object |
+| v9 | 14 Oct | One specific food per row (no "or"); lookup notes shown in the reply; firmer retry rule with the number of validation calls shown; planning rules match the flow's checks |
 
 Test results for every prompt version and scenario are kept in the repository's `docs/test-results.md`.
 
@@ -155,4 +166,4 @@ Test results for every prompt version and scenario are kept in the repository's 
 
 ## Appendix: prompt text
 
-The full text of each prompt version is kept in the repository's `prompts/` folder (prompt\_v1.md to prompt\_v5.md), each with its date, changes and result. v4 is the active prompt.
+The full text of each prompt version is kept in the repository's `prompts/` folder (prompt\_v1.md to prompt\_v9.md), each with its date, changes and result. v9 is the active prompt.
